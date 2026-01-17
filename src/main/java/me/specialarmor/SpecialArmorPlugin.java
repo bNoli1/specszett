@@ -44,8 +44,10 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
         });
 
         getCommand("setspecial").setExecutor((sender, command, label, args) -> {
-            if (!(sender instanceof Player player)) return true;
-            if (!player.hasPermission("specialarmor.admin")) return true;
+            if (!(sender instanceof Player player) || !player.hasPermission("specialarmor.admin")) {
+                sender.sendMessage(getMsg("msg-no-permission", "&cNincs jogod!"));
+                return true;
+            }
             if (args.length < 2) return true;
             
             String setName = args[0].toLowerCase();
@@ -62,17 +64,17 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
             meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
             item.setItemMeta(meta);
             updateArmorStats(player);
+            player.sendMessage(Component.text("Szettrész mentve!"));
             return true;
         });
     }
 
-    private Component getTitle(String path, String def) {
-        String raw = getConfig().getString(path, def);
-        return LegacyComponentSerializer.legacyAmpersand().deserialize(raw);
+    private Component getMsg(String path, String def) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(getConfig().getString(path, def));
     }
 
     private void openAdminGui(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, getTitle("gui-title-admin", "GUI Szerkesztő (Admin)"));
+        Inventory inv = Bukkit.createInventory(null, 27, getMsg("gui-title-admin", "Admin GUI"));
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
             for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
@@ -81,7 +83,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     private void openPlayerGui(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, getTitle("gui-title-player", "Referencia Páncélok"));
+        Inventory inv = Bukkit.createInventory(null, 27, getMsg("gui-title-player", "Szett GUI"));
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
             for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
@@ -96,12 +98,53 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getView().title().equals(getMsg("gui-title-player", "Szett GUI"))) {
+            int slot = event.getRawSlot();
+            if (slot >= 0 && slot < 27) {
+                List<?> layout = getConfig().getList("gui-layout");
+                ItemStack template = (layout != null && slot < layout.size()) ? (ItemStack) layout.get(slot) : null;
+                if (template != null && template.getType() != Material.AIR) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                if (isAnySpecial(cursor)) {
+                    event.setCancelled(true);
+                    player.sendMessage(getMsg("msg-error-special", "&cSpeciális!"));
+                    return;
+                }
+
+                String category = getArmorCategory(cursor.getType().name());
+                if (category != null) {
+                    for (int i = 0; i < event.getInventory().getSize(); i++) {
+                        if (i == slot) continue;
+                        ItemStack item = event.getInventory().getItem(i);
+                        if (item != null && item.getType().name().endsWith(category)) {
+                            event.setCancelled(true);
+                            player.sendMessage(getMsg("msg-error-duplicate", "&cDuplikált!"));
+                            return;
+                        }
+                    }
+                    // SIKERES BERAKÁS ÜZENET
+                    String partName = getConfig().getString("parts." + category, category);
+                    int prot = cursor.getEnchantmentLevel(Enchantment.PROTECTION);
+                    String msg = getConfig().getString("msg-item-added", "OK")
+                            .replace("%part%", partName)
+                            .replace("%level%", String.valueOf(prot));
+                    player.sendMessage(LegacyComponentSerializer.legacyAmpersand().deserialize(msg));
+                }
+            }
+        }
+    }
+
+    @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        Component title = event.getView().title();
-        if (title.equals(getTitle("gui-title-admin", "GUI Szerkesztő (Admin)"))) {
-            getConfig().set("gui-layout", List.of(event.getInventory().getContents()));
-            saveConfig();
-        } else if (title.equals(getTitle("gui-title-player", "Referencia Páncélok"))) {
+        if (event.getView().title().equals(getMsg("gui-title-player", "Szett GUI"))) {
             Player player = (Player) event.getPlayer();
             String uuid = player.getUniqueId().toString();
             List<?> layout = getConfig().getList("gui-layout");
@@ -113,39 +156,9 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
             }
             saveConfig();
             updateArmorStats(player);
-        }
-    }
-
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getView().title().equals(getTitle("gui-title-player", "Referencia Páncélok"))) {
-            int slot = event.getRawSlot();
-            if (slot >= 0 && slot < 27) {
-                List<?> layout = getConfig().getList("gui-layout");
-                ItemStack template = (layout != null && slot < layout.size()) ? (ItemStack) layout.get(slot) : null;
-                if (template != null && template.getType() != Material.AIR) {
-                    event.setCancelled(true);
-                    return;
-                }
-            }
-            ItemStack cursor = event.getCursor();
-            if (cursor != null && !cursor.getType().isAir()) {
-                if (isAnySpecial(cursor)) {
-                    event.setCancelled(true);
-                    return;
-                }
-                String category = getArmorCategory(cursor.getType().name());
-                if (category != null) {
-                    for (int i = 0; i < event.getInventory().getSize(); i++) {
-                        if (i == slot) continue;
-                        ItemStack item = event.getInventory().getItem(i);
-                        if (item != null && item.getType().name().endsWith(category)) {
-                            event.setCancelled(true);
-                            return;
-                        }
-                    }
-                }
-            }
+        } else if (event.getView().title().equals(getMsg("gui-title-admin", "Admin GUI"))) {
+            getConfig().set("gui-layout", List.of(event.getInventory().getContents()));
+            saveConfig();
         }
     }
 
@@ -160,15 +173,15 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
             if (setName != null && getConfig().contains("sets." + setName)) {
                 int off = getConfig().getInt("sets." + setName + ".offset");
                 String type = item.getType().name();
-                int target = 0;
+                int target = -1;
                 if (type.endsWith("_HELMET")) target = best[0] + off;
                 else if (type.endsWith("_CHESTPLATE")) target = best[1] + off;
                 else if (type.endsWith("_LEGGINGS")) target = best[2] + off;
                 else if (type.endsWith("_BOOTS")) target = best[3] + off;
-                else continue;
-                if (item.getEnchantmentLevel(Enchantment.PROTECTION) != target) {
+
+                if (target != -1) {
                     ItemMeta meta = item.getItemMeta();
-                    meta.addEnchant(Enchantment.PROTECTION, target, true);
+                    meta.addEnchant(Enchantment.PROTECTION, Math.max(0, target), true);
                     item.setItemMeta(meta);
                 }
             }
@@ -176,7 +189,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     private int[] findMaxProtInGui(Player player) {
-        int[] m = {0,0,0,0};
+        int[] m = {0,0,0,0}; // Alapértelmezett minimum mostantól 0
         String uuid = player.getUniqueId().toString();
         if (getConfig().contains("player-data." + uuid)) {
             for (String k : getConfig().getConfigurationSection("player-data." + uuid).getKeys(false)) {
@@ -184,14 +197,13 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                 if (it != null) {
                     int p = it.getEnchantmentLevel(Enchantment.PROTECTION);
                     String n = it.getType().name();
-                    if (n.endsWith("_HELMET")) m[0] = Math.max(m[0], p);
-                    else if (n.endsWith("_CHESTPLATE")) m[1] = Math.max(m[1], p);
-                    else if (n.endsWith("_LEGGINGS")) m[2] = Math.max(m[2], p);
-                    else if (n.endsWith("_BOOTS")) m[3] = Math.max(m[3], p);
+                    if (n.endsWith("_HELMET")) m[0] = p;
+                    else if (n.endsWith("_CHESTPLATE")) m[1] = p;
+                    else if (n.endsWith("_LEGGINGS")) m[2] = p;
+                    else if (n.endsWith("_BOOTS")) m[3] = p;
                 }
             }
         }
-        for(int i=0; i<4; i++) if(m[i] < 3) m[i] = 3;
         return m;
     }
 
