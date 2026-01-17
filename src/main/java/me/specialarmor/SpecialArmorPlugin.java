@@ -1,4 +1,4 @@
-package me.specialarmor.SpecialArmorPlugin
+package me.specialarmor;
 
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
@@ -20,11 +20,9 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        // Config inicializálása
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         
-        // /setspecial <név> <offset> parancs
         if (getCommand("setspecial") != null) {
             getCommand("setspecial").setExecutor((sender, command, label, args) -> {
                 if (!(sender instanceof Player player)) return true;
@@ -48,44 +46,38 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                 }
 
                 ItemStack item = player.getInventory().getItemInMainHand();
-                if (item.getType().isAir()) {
+                if (item.getType().isAir() || item.getAmount() == 0) {
                     player.sendMessage(Component.text("Fogj egy tárgyat a kezedben!", NamedTextColor.RED));
                     return true;
                 }
 
-                // Mentés a configba
                 getConfig().set("sets." + setName + ".offset", offset);
                 saveConfig();
 
-                // Tárgy megjelölése
                 ItemMeta meta = item.getItemMeta();
-                meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
-                item.setItemMeta(meta);
+                if (meta != null) {
+                    meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
+                    item.setItemMeta(meta);
+                }
 
                 player.sendMessage(Component.text("Siker! A(z) ", NamedTextColor.GREEN)
                         .append(Component.text(setName, NamedTextColor.GOLD))
-                        .append(Component.text(" szett hozzáadva +" + offset + " értékkel.", NamedTextColor.GREEN)));
+                        .append(Component.text(" szett elmentve +" + offset + " értékkel.", NamedTextColor.GREEN)));
                 
                 updateArmorStats(player);
                 return true;
             });
         }
 
-        // /specialreload parancs
         if (getCommand("specialreload") != null) {
             getCommand("specialreload").setExecutor((sender, command, label, args) -> {
                 if (!sender.hasPermission("specialarmor.admin")) {
-                    sender.sendMessage(Component.text("Nincs jogosultságod a config újratöltéséhez!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Nincs jogosultságod!", NamedTextColor.RED));
                     return true;
                 }
-
                 reloadConfig();
-                sender.sendMessage(Component.text("SpecialArmor config sikeresen újratöltve!", NamedTextColor.AQUA));
-                
-                // Ha játékos futtatta, azonnal frissítjük a nála lévő cuccokat is
-                if (sender instanceof Player player) {
-                    updateArmorStats(player);
-                }
+                sender.sendMessage(Component.text("SpecialArmor config újratöltve!", NamedTextColor.AQUA));
+                if (sender instanceof Player player) updateArmorStats(player);
                 return true;
             });
         }
@@ -146,7 +138,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     private boolean isAnySpecial(ItemStack item) {
-        return item != null && item.hasItemMeta() && 
-               item.getItemMeta().getPersistentDataContainer().has(setTagKey, PersistentDataType.STRING);
+        if (item == null || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(setTagKey, PersistentDataType.STRING);
     }
 }
