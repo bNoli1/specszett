@@ -1,4 +1,4 @@
-package me.specialarmor;
+package me.specialarmor.SpecialArmorPlugin
 
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
