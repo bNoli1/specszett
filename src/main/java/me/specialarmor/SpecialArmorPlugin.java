@@ -46,7 +46,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                 }
 
                 ItemStack item = player.getInventory().getItemInMainHand();
-                if (item.getType().isAir() || item.getAmount() == 0) {
+                if (item.getType().isAir()) {
                     player.sendMessage(Component.text("Fogj egy tárgyat a kezedben!", NamedTextColor.RED));
                     return true;
                 }
@@ -118,7 +118,8 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                 else if (typeName.endsWith("_BOOTS")) targetLevel = bestBoots + offset;
                 else continue;
 
-                if (meta.getEnchantmentLevel(Enchantment.PROTECTION) != targetLevel) {
+                // 1.21.4 kompatibilis ellenőrzés: item-ről kérjük le a szintet
+                if (item.getEnchantmentLevel(Enchantment.PROTECTION) != targetLevel) {
                     meta.addEnchant(Enchantment.PROTECTION, targetLevel, true);
                     item.setItemMeta(meta);
                 }
