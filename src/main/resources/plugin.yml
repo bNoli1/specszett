@@ -1,0 +1,15 @@
+name: SpecialArmor
+version: 1.5
+main: me.specialarmor.SpecialArmorPlugin
+api-version: 1.21
+commands:
+  setspecial:
+    description: "Tárgy szetthez rendelése: /setspecial <név> <offset>"
+    permission: specialarmor.admin
+  specialreload:
+    description: "A plugin konfigurációjának újratöltése."
+    permission: specialarmor.admin
+permissions:
+  specialarmor.admin:
+    description: "Hozzáférés a SpecialArmor minden funkciójához"
+    default: op
