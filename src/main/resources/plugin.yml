@@ -1,15 +1,21 @@
 name: SpecialArmor
-version: 1.5
+version: 1.6
 main: me.specialarmor.SpecialArmorPlugin
 api-version: '1.21'
 commands:
+  szett:
+    description: "Megnyitja a saját referencia páncél menüdet."
+    aliases: [customszett, plusszszett, plusszett]
+  specadmin:
+    description: "Az adminisztrátori GUI sablon szerkesztése."
+    permission: specialarmor.admin
   setspecial:
-    description: "Tárgy szetthez rendelése"
+    description: "Tárgy hozzárendelése egy speciális szetthez."
     permission: specialarmor.admin
   specialreload:
-    description: "Config újratöltése"
+    description: "Konfiguráció újratöltése."
     permission: specialarmor.admin
 permissions:
   specialarmor.admin:
-    description: "Admin jog"
+    description: "Adminisztrátori jogok a SpecialArmor pluginhoz."
     default: op
