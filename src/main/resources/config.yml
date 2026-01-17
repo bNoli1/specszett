@@ -1,0 +1,6 @@
+# SpecialArmor Konfiguráció
+sets:
+  legendas:      # A szett neve, amit a /setspecial parancsnál adtál meg
+    offset: 2    # Ez határozza meg, mennyivel legyen erősebb a legjobb szettnél
+  isten:
+    offset: 10   # Ennél a szettnél 10-zel lesz nagyobb a védelem
