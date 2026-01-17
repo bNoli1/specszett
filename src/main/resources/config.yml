@@ -1,9 +1,7 @@
-# SpecialArmor Configuration
-# A szettek erejét a /setspecial parancs automatikusan ide menti.
+# A menük címei (támogatja a színeket is)
+gui-title-player: "Referencia Páncélok"
+gui-title-admin: "GUI Szerkesztő (Admin)"
+
 sets: {}
-
-# Itt tárolódik a GUI kinézete
 gui-layout: []
-
-# Itt tárolódnak a játékosok által betett tárgyak
 player-data: {}
