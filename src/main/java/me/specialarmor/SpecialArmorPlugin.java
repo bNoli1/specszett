@@ -16,72 +16,63 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import java.util.List;
 
 public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     private final NamespacedKey setTagKey = new NamespacedKey(this, "special_set_name");
-    private final String ADMIN_GUI_TITLE = "GUI Szerkesztő (Admin)";
-    private final String PLAYER_GUI_TITLE = "Referencia Páncélok";
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
 
-        if (getCommand("specadmin") != null) {
-            getCommand("specadmin").setExecutor((sender, command, label, args) -> {
-                if (sender instanceof Player player && player.hasPermission("specialarmor.admin")) {
-                    openAdminGui(player);
-                }
-                return true;
-            });
-        }
+        getCommand("specadmin").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof Player player && player.hasPermission("specialarmor.admin")) {
+                openAdminGui(player);
+            }
+            return true;
+        });
 
-        if (getCommand("szett") != null) {
-            getCommand("szett").setExecutor((sender, command, label, args) -> {
-                if (sender instanceof Player player) {
-                    openPlayerGui(player);
-                }
-                return true;
-            });
-        }
+        getCommand("szett").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof Player player) {
+                openPlayerGui(player);
+            }
+            return true;
+        });
 
-        if (getCommand("setspecial") != null) {
-            getCommand("setspecial").setExecutor((sender, command, label, args) -> {
-                if (!(sender instanceof Player player)) return true;
-                if (!player.hasPermission("specialarmor.admin")) {
-                    player.sendMessage(Component.text("Nincs jogosultságod!", NamedTextColor.RED));
-                    return true;
-                }
-                if (args.length < 2) {
-                    player.sendMessage(Component.text("Használat: /setspecial <név> <plusz_védelem>", NamedTextColor.YELLOW));
-                    return true;
-                }
-                String setName = args[0].toLowerCase();
-                int offset;
-                try { offset = Integer.parseInt(args[1]); } catch (NumberFormatException e) { return true; }
+        getCommand("setspecial").setExecutor((sender, command, label, args) -> {
+            if (!(sender instanceof Player player)) return true;
+            if (!player.hasPermission("specialarmor.admin")) return true;
+            if (args.length < 2) return true;
+            
+            String setName = args[0].toLowerCase();
+            int offset;
+            try { offset = Integer.parseInt(args[1]); } catch (NumberFormatException e) { return true; }
 
-                ItemStack item = player.getInventory().getItemInMainHand();
-                if (item.getType().isAir()) return true;
+            ItemStack item = player.getInventory().getItemInMainHand();
+            if (item.getType().isAir()) return true;
 
-                getConfig().set("sets." + setName + ".offset", offset);
-                saveConfig();
+            getConfig().set("sets." + setName + ".offset", offset);
+            saveConfig();
 
-                ItemMeta meta = item.getItemMeta();
-                meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
-                item.setItemMeta(meta);
-                player.sendMessage(Component.text("Siker! Szett: " + setName + " (+" + offset + ")", NamedTextColor.GREEN));
-                updateArmorStats(player);
-                return true;
-            });
-        }
+            ItemMeta meta = item.getItemMeta();
+            meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
+            item.setItemMeta(meta);
+            updateArmorStats(player);
+            return true;
+        });
+    }
+
+    private Component getTitle(String path, String def) {
+        String raw = getConfig().getString(path, def);
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(raw);
     }
 
     private void openAdminGui(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, Component.text(ADMIN_GUI_TITLE, NamedTextColor.RED));
+        Inventory inv = Bukkit.createInventory(null, 27, getTitle("gui-title-admin", "GUI Szerkesztő (Admin)"));
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
             for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
@@ -90,7 +81,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     private void openPlayerGui(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE));
+        Inventory inv = Bukkit.createInventory(null, 27, getTitle("gui-title-player", "Referencia Páncélok"));
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
             for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
@@ -106,10 +97,11 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        if (event.getView().title().equals(Component.text(ADMIN_GUI_TITLE, NamedTextColor.RED))) {
+        Component title = event.getView().title();
+        if (title.equals(getTitle("gui-title-admin", "GUI Szerkesztő (Admin)"))) {
             getConfig().set("gui-layout", List.of(event.getInventory().getContents()));
             saveConfig();
-        } else if (event.getView().title().equals(Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE))) {
+        } else if (title.equals(getTitle("gui-title-player", "Referencia Páncélok"))) {
             Player player = (Player) event.getPlayer();
             String uuid = player.getUniqueId().toString();
             List<?> layout = getConfig().getList("gui-layout");
@@ -126,7 +118,7 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getView().title().equals(Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE))) {
+        if (event.getView().title().equals(getTitle("gui-title-player", "Referencia Páncélok"))) {
             int slot = event.getRawSlot();
             if (slot >= 0 && slot < 27) {
                 List<?> layout = getConfig().getList("gui-layout");
