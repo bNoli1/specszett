@@ -18,7 +18,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class SpecialArmorPlugin extends JavaPlugin implements Listener {
@@ -49,39 +48,57 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                 return true;
             });
         }
+
+        if (getCommand("setspecial") != null) {
+            getCommand("setspecial").setExecutor((sender, command, label, args) -> {
+                if (!(sender instanceof Player player)) return true;
+                if (!player.hasPermission("specialarmor.admin")) {
+                    player.sendMessage(Component.text("Nincs jogosultságod!", NamedTextColor.RED));
+                    return true;
+                }
+                if (args.length < 2) {
+                    player.sendMessage(Component.text("Használat: /setspecial <név> <plusz_védelem>", NamedTextColor.YELLOW));
+                    return true;
+                }
+                String setName = args[0].toLowerCase();
+                int offset;
+                try { offset = Integer.parseInt(args[1]); } catch (NumberFormatException e) { return true; }
+
+                ItemStack item = player.getInventory().getItemInMainHand();
+                if (item.getType().isAir()) return true;
+
+                getConfig().set("sets." + setName + ".offset", offset);
+                saveConfig();
+
+                ItemMeta meta = item.getItemMeta();
+                meta.getPersistentDataContainer().set(setTagKey, PersistentDataType.STRING, setName);
+                item.setItemMeta(meta);
+                player.sendMessage(Component.text("Siker! Szett: " + setName + " (+" + offset + ")", NamedTextColor.GREEN));
+                updateArmorStats(player);
+                return true;
+            });
+        }
     }
 
     private void openAdminGui(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(ADMIN_GUI_TITLE, NamedTextColor.RED));
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
-            for (int i = 0; i < Math.min(layout.size(), 27); i++) {
-                inv.setItem(i, (ItemStack) layout.get(i));
-            }
+            for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
         }
         player.openInventory(inv);
     }
 
     private void openPlayerGui(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE));
-        
-        // 1. Sablon betöltése
         List<?> layout = getConfig().getList("gui-layout");
         if (layout != null) {
-            for (int i = 0; i < Math.min(layout.size(), 27); i++) {
-                inv.setItem(i, (ItemStack) layout.get(i));
-            }
+            for (int i = 0; i < Math.min(layout.size(), 27); i++) inv.setItem(i, (ItemStack) layout.get(i));
         }
-
-        // 2. Játékos adatainak betöltése a fájlból
         String uuid = player.getUniqueId().toString();
         if (getConfig().contains("player-data." + uuid)) {
             for (String key : getConfig().getConfigurationSection("player-data." + uuid).getKeys(false)) {
-                try {
-                    int slot = Integer.parseInt(key);
-                    ItemStack item = getConfig().getItemStack("player-data." + uuid + "." + slot);
-                    if (item != null) inv.setItem(slot, item);
-                } catch (Exception e) { /* Hibás adat kihagyása */ }
+                inv.setItem(Integer.parseInt(key), getConfig().getItemStack("player-data." + uuid + "." + key));
             }
         }
         player.openInventory(inv);
@@ -89,28 +106,18 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        Player player = (Player) event.getPlayer();
-        Inventory inv = event.getInventory();
-
         if (event.getView().title().equals(Component.text(ADMIN_GUI_TITLE, NamedTextColor.RED))) {
-            getConfig().set("gui-layout", List.of(inv.getContents()));
+            getConfig().set("gui-layout", List.of(event.getInventory().getContents()));
             saveConfig();
-            player.sendMessage(Component.text("GUI Sablon elmentve!", NamedTextColor.GREEN));
-        } 
-        else if (event.getView().title().equals(Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE))) {
+        } else if (event.getView().title().equals(Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE))) {
+            Player player = (Player) event.getPlayer();
             String uuid = player.getUniqueId().toString();
             List<?> layout = getConfig().getList("gui-layout");
-            
-            // Csak azokat mentjük, amik nem az admin sablon részei
-            for (int i = 0; i < inv.getSize(); i++) {
-                ItemStack current = inv.getItem(i);
+            for (int i = 0; i < event.getInventory().getSize(); i++) {
+                ItemStack current = event.getInventory().getItem(i);
                 ItemStack template = (layout != null && i < layout.size()) ? (ItemStack) layout.get(i) : null;
-
-                if (current != null && !current.equals(template)) {
-                    getConfig().set("player-data." + uuid + "." + i, current);
-                } else {
-                    getConfig().set("player-data." + uuid + "." + i, null);
-                }
+                if (current != null && !current.equals(template)) getConfig().set("player-data." + uuid + "." + i, current);
+                else getConfig().set("player-data." + uuid + "." + i, null);
             }
             saveConfig();
             updateArmorStats(player);
@@ -119,14 +126,9 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        
         if (event.getView().title().equals(Component.text(PLAYER_GUI_TITLE, NamedTextColor.DARK_PURPLE))) {
             int slot = event.getRawSlot();
-            ItemStack cursorItem = event.getCursor();
-
-            // 1. Sablon védelem
-            if (slot >= 0 && slot < event.getInventory().getSize()) {
+            if (slot >= 0 && slot < 27) {
                 List<?> layout = getConfig().getList("gui-layout");
                 ItemStack template = (layout != null && slot < layout.size()) ? (ItemStack) layout.get(slot) : null;
                 if (template != null && template.getType() != Material.AIR) {
@@ -134,25 +136,19 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
                     return;
                 }
             }
-
-            // 2. Behelyezés ellenőrzése
-            if (cursorItem != null && !cursorItem.getType().isAir()) {
-                if (isAnySpecial(cursorItem)) {
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                if (isAnySpecial(cursor)) {
                     event.setCancelled(true);
-                    player.sendMessage(Component.text("Speciális szettet nem használhatsz referenciaként!", NamedTextColor.RED));
                     return;
                 }
-
-                String typeName = cursorItem.getType().name();
-                String category = getArmorCategory(typeName);
-
+                String category = getArmorCategory(cursor.getType().name());
                 if (category != null) {
                     for (int i = 0; i < event.getInventory().getSize(); i++) {
                         if (i == slot) continue;
-                        ItemStack itemInInv = event.getInventory().getItem(i);
-                        if (itemInInv != null && itemInInv.getType().name().endsWith(category)) {
+                        ItemStack item = event.getInventory().getItem(i);
+                        if (item != null && item.getType().name().endsWith(category)) {
                             event.setCancelled(true);
-                            player.sendMessage(Component.text("Ebből a szettrészből már van egy bent!", NamedTextColor.RED));
                             return;
                         }
                     }
@@ -162,28 +158,24 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
-        updateArmorStats(event.getPlayer());
-    }
+    public void onJoin(PlayerJoinEvent event) { updateArmorStats(event.getPlayer()); }
 
     private void updateArmorStats(Player player) {
-        int[] bestFromGui = findMaxProtInGui(player);
+        int[] best = findMaxProtInGui(player);
         for (ItemStack item : player.getInventory().getContents()) {
             if (item == null || !item.hasItemMeta()) continue;
-            ItemMeta meta = item.getItemMeta();
-            String setName = meta.getPersistentDataContainer().get(setTagKey, PersistentDataType.STRING);
-            
+            String setName = item.getItemMeta().getPersistentDataContainer().get(setTagKey, PersistentDataType.STRING);
             if (setName != null && getConfig().contains("sets." + setName)) {
-                int offset = getConfig().getInt("sets." + setName + ".offset");
-                String typeName = item.getType().name();
-                int target;
-                if (typeName.endsWith("_HELMET")) target = bestFromGui[0] + offset;
-                else if (typeName.endsWith("_CHESTPLATE")) target = bestFromGui[1] + offset;
-                else if (typeName.endsWith("_LEGGINGS")) target = bestFromGui[2] + offset;
-                else if (typeName.endsWith("_BOOTS")) target = bestFromGui[3] + offset;
+                int off = getConfig().getInt("sets." + setName + ".offset");
+                String type = item.getType().name();
+                int target = 0;
+                if (type.endsWith("_HELMET")) target = best[0] + off;
+                else if (type.endsWith("_CHESTPLATE")) target = best[1] + off;
+                else if (type.endsWith("_LEGGINGS")) target = best[2] + off;
+                else if (type.endsWith("_BOOTS")) target = best[3] + off;
                 else continue;
-
                 if (item.getEnchantmentLevel(Enchantment.PROTECTION) != target) {
+                    ItemMeta meta = item.getItemMeta();
                     meta.addEnchant(Enchantment.PROTECTION, target, true);
                     item.setItemMeta(meta);
                 }
@@ -192,35 +184,34 @@ public class SpecialArmorPlugin extends JavaPlugin implements Listener {
     }
 
     private int[] findMaxProtInGui(Player player) {
-        int[] maxes = {0, 0, 0, 0};
+        int[] m = {0,0,0,0};
         String uuid = player.getUniqueId().toString();
         if (getConfig().contains("player-data." + uuid)) {
-            for (String key : getConfig().getConfigurationSection("player-data." + uuid).getKeys(false)) {
-                ItemStack item = getConfig().getItemStack("player-data." + uuid + "." + key);
-                if (item != null) {
-                    int prot = item.getEnchantmentLevel(Enchantment.PROTECTION);
-                    String name = item.getType().name();
-                    if (name.endsWith("_HELMET")) maxes[0] = Math.max(maxes[0], prot);
-                    else if (name.endsWith("_CHESTPLATE")) maxes[1] = Math.max(maxes[1], prot);
-                    else if (name.endsWith("_LEGGINGS")) maxes[2] = Math.max(maxes[2], prot);
-                    else if (name.endsWith("_BOOTS")) maxes[3] = Math.max(maxes[3], prot);
+            for (String k : getConfig().getConfigurationSection("player-data." + uuid).getKeys(false)) {
+                ItemStack it = getConfig().getItemStack("player-data." + uuid + "." + k);
+                if (it != null) {
+                    int p = it.getEnchantmentLevel(Enchantment.PROTECTION);
+                    String n = it.getType().name();
+                    if (n.endsWith("_HELMET")) m[0] = Math.max(m[0], p);
+                    else if (n.endsWith("_CHESTPLATE")) m[1] = Math.max(m[1], p);
+                    else if (n.endsWith("_LEGGINGS")) m[2] = Math.max(m[2], p);
+                    else if (n.endsWith("_BOOTS")) m[3] = Math.max(m[3], p);
                 }
             }
         }
-        for(int i=0; i<4; i++) if(maxes[i] < 3) maxes[i] = 3;
-        return maxes;
+        for(int i=0; i<4; i++) if(m[i] < 3) m[i] = 3;
+        return m;
     }
 
-    private String getArmorCategory(String typeName) {
-        if (typeName.endsWith("_HELMET")) return "_HELMET";
-        if (typeName.endsWith("_CHESTPLATE")) return "_CHESTPLATE";
-        if (typeName.endsWith("_LEGGINGS")) return "_LEGGINGS";
-        if (typeName.endsWith("_BOOTS")) return "_BOOTS";
+    private String getArmorCategory(String t) {
+        if (t.endsWith("_HELMET")) return "_HELMET";
+        if (t.endsWith("_CHESTPLATE")) return "_CHESTPLATE";
+        if (t.endsWith("_LEGGINGS")) return "_LEGGINGS";
+        if (t.endsWith("_BOOTS")) return "_BOOTS";
         return null;
     }
 
-    private boolean isAnySpecial(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) return false;
-        return item.getItemMeta().getPersistentDataContainer().has(setTagKey, PersistentDataType.STRING);
+    private boolean isAnySpecial(ItemStack i) {
+        return i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(setTagKey, PersistentDataType.STRING);
     }
 }
