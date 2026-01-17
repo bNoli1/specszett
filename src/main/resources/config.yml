@@ -1,6 +1,19 @@
-# A menük címei (támogatja a színeket is)
-gui-title-player: "Referencia Páncélok"
-gui-title-admin: "GUI Szerkesztő (Admin)"
+# Menü címei
+gui-title-player: "&8Referencia Páncélok"
+gui-title-admin: "&cGUI Szerkesztő (Admin)"
+
+# Üzenetek
+msg-item-added: "&aSikeresen beállítva: &e%part% &a(Alap védelem: &f%level%&a)"
+msg-error-special: "&cSpeciális szettet nem használhatsz referenciaként!"
+msg-error-duplicate: "&cEbből a szettrészből már van egy a menüben!"
+msg-no-permission: "&cNincs jogosultságod ehhez!"
+
+# Fordítások a kijelzéshez
+parts:
+  _HELMET: "Sisak"
+  _CHESTPLATE: "Mellvért"
+  _LEGGINGS: "Nadrág"
+  _BOOTS: "Csizma"
 
 sets: {}
 gui-layout: []
